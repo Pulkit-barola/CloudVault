@@ -10,7 +10,7 @@ It allows users to securely upload, download, search, and delete files while tra
 
 Add your deployed Streamlit URL here:
 
-https://your-app.streamlit.app
+(https://cloudvault72.streamlit.app/)
 
 ---
 
@@ -18,7 +18,7 @@ https://your-app.streamlit.app
 
 Add your GitHub repository URL here:
 
-https://github.com/yourusername/CloudVault
+[https://github.com/yourusername/CloudVault](https://github.com/Pulkit-barola/CloudVault)
 
 ---
 
@@ -120,7 +120,7 @@ Quickly locate files using keyword search.
 
 Clone the repository:
 
-git clone https://github.com/yourusername/CloudVault.git
+git clone [https://github.com/yourusername/CloudVault.git](https://github.com/Pulkit-barola/CloudVault)
 
 cd CloudVault
 
