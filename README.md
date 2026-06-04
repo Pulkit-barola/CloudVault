@@ -1,5 +1,11 @@
 # ☁️ CloudVault
 
+![Python](https://img.shields.io/badge/Python-3.12-blue)
+![AWS](https://img.shields.io/badge/AWS-S3-orange)
+![Streamlit](https://img.shields.io/badge/Streamlit-Deployed-red)
+
+AWS S3 powered cloud file storage platform with upload, download, search, analytics and cloud storage management.
+
 CloudVault is a cloud-based file storage and management platform built using Python, Streamlit, SQLite, and Amazon S3.
 
 It allows users to securely upload, download, search, and delete files while tracking metadata and storage analytics through an interactive dashboard.
