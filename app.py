@@ -3,11 +3,30 @@ import sqlite3
 import os
 from datetime import datetime
 import pandas as pd
+from dotenv import load_dotenv
+import boto3
 
-UPLOAD_FOLDER = "uploads"
+# ----------------------------
+# AWS CONFIG
+# ----------------------------
 
-if not os.path.exists(UPLOAD_FOLDER):
-    os.makedirs(UPLOAD_FOLDER)
+load_dotenv()
+
+AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
+AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+AWS_REGION = os.getenv("AWS_REGION")
+BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
+
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY,
+    aws_secret_access_key=AWS_SECRET_KEY,
+    region_name=AWS_REGION
+)
+
+# ----------------------------
+# PAGE CONFIG
+# ----------------------------
 
 st.set_page_config(
     page_title="CloudVault",
@@ -15,8 +34,15 @@ st.set_page_config(
     layout="wide"
 )
 
-# Database Connection
-conn = sqlite3.connect("files.db", check_same_thread=False)
+# ----------------------------
+# DATABASE
+# ----------------------------
+
+conn = sqlite3.connect(
+    "files.db",
+    check_same_thread=False
+)
+
 cursor = conn.cursor()
 
 cursor.execute("""
@@ -30,17 +56,30 @@ CREATE TABLE IF NOT EXISTS files (
 """)
 
 conn.commit()
-# Get Metrics First
-cursor.execute("SELECT COUNT(*) FROM files")
+
+# ----------------------------
+# METRICS
+# ----------------------------
+
+cursor.execute(
+    "SELECT COUNT(*) FROM files"
+)
+
 total_files = cursor.fetchone()[0]
 
-cursor.execute("SELECT SUM(size) FROM files")
+cursor.execute(
+    "SELECT SUM(size) FROM files"
+)
+
 total_size = cursor.fetchone()[0]
 
 if total_size is None:
     total_size = 0
 
-# Sidebar
+# ----------------------------
+# SIDEBAR
+# ----------------------------
+
 st.sidebar.title("☁️ CloudVault")
 
 st.sidebar.markdown("""
@@ -50,9 +89,12 @@ st.sidebar.markdown("""
 - Delete Files
 - Search Files
 - Storage Analytics
+- AWS S3 Storage
 """)
 
-st.sidebar.success("Cloud Ready Architecture")
+st.sidebar.success(
+    "AWS Cloud Ready Architecture"
+)
 
 MAX_STORAGE_MB = 100
 
@@ -62,80 +104,124 @@ used_storage_mb = round(
 )
 
 usage_percent = min(
-    int((used_storage_mb / MAX_STORAGE_MB) * 100),
+    int(
+        (used_storage_mb / MAX_STORAGE_MB)
+        * 100
+    ),
     100
 )
 
-st.sidebar.subheader("Storage Usage")
-st.sidebar.progress(usage_percent)
+st.sidebar.subheader(
+    "Storage Usage"
+)
+
+st.sidebar.progress(
+    usage_percent
+)
+
 st.sidebar.write(
     f"{used_storage_mb} MB / {MAX_STORAGE_MB} MB"
 )
 
-# Main Title
-st.title("☁️ CloudVault")
-st.caption("Secure File Management & Storage Platform")
+# ----------------------------
+# TITLE
+# ----------------------------
 
-# Upload Section
-uploaded_file = st.file_uploader("Upload File")
+st.title("☁️ CloudVault")
+
+st.caption(
+    "AWS S3 Powered File Storage System"
+)
+
+# ----------------------------
+# FILE UPLOAD
+# ----------------------------
+
+uploaded_file = st.file_uploader(
+    "Upload File"
+)
 
 if uploaded_file:
 
     if st.button("Upload"):
 
-        filepath = os.path.join(
-            UPLOAD_FOLDER,
-            uploaded_file.name
-        )
+        try:
 
-        with open(filepath, "wb") as f:
-            f.write(uploaded_file.getbuffer())
+            s3.upload_fileobj(
+                uploaded_file,
+                BUCKET_NAME,
+                uploaded_file.name
+            )
 
-        cursor.execute(
-            """
-            INSERT INTO files
-            (filename, file_type, size, upload_date)
-            VALUES (?, ?, ?, ?)
-            """,
-            (
-                uploaded_file.name,
-                uploaded_file.type,
-                uploaded_file.size,
-                datetime.now().strftime(
-                    "%Y-%m-%d %H:%M:%S"
+            cursor.execute(
+                """
+                INSERT INTO files
+                (filename,file_type,size,upload_date)
+                VALUES (?,?,?,?)
+                """,
+                (
+                    uploaded_file.name,
+                    uploaded_file.type,
+                    uploaded_file.size,
+                    datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
+                    )
                 )
             )
-        )
 
-        conn.commit()
+            conn.commit()
 
-        st.success("File Uploaded Successfully!")
-        st.rerun()
+            st.success(
+                "File Uploaded To AWS S3 Successfully!"
+            )
 
-# Metrics
+            st.rerun()
+
+        except Exception as e:
+
+            st.error(
+                f"Upload Failed: {e}"
+            )
+
+# ----------------------------
+# METRICS
+# ----------------------------
+
 st.divider()
 
 col1, col2 = st.columns(2)
 
 with col1:
+
     st.metric(
         "Total Files",
         total_files
     )
 
 with col2:
+
     st.metric(
         "Storage Used (KB)",
-        round(total_size / 1024, 2)
+        round(
+            total_size / 1024,
+            2
+        )
     )
 
-# Recent Uploads
+# ----------------------------
+# RECENT FILES
+# ----------------------------
+
 st.divider()
 
-st.subheader("📋 Recent Uploads")
+st.subheader(
+    "📋 Recent Uploads"
+)
 
 cursor.execute("""
-SELECT filename, file_type, upload_date
+SELECT filename,
+       file_type,
+       upload_date
 FROM files
 ORDER BY id DESC
 LIMIT 5
@@ -146,20 +232,30 @@ recent_files = cursor.fetchall()
 if recent_files:
 
     for file in recent_files:
+
         st.write(
             f"📄 {file[0]} | {file[1]} | {file[2]}"
         )
 
 else:
-    st.info("No recent uploads")
 
-# Analytics
+    st.info(
+        "No recent uploads"
+    )
+
+# ----------------------------
+# ANALYTICS
+# ----------------------------
+
 st.divider()
 
-st.subheader("📊 File Type Analytics")
+st.subheader(
+    "📊 File Type Analytics"
+)
 
 cursor.execute("""
-SELECT file_type, COUNT(*)
+SELECT file_type,
+       COUNT(*)
 FROM files
 GROUP BY file_type
 """)
@@ -177,10 +273,15 @@ if analytics:
     )
 
     st.bar_chart(
-        df.set_index("File Type")
+        df.set_index(
+            "File Type"
+        )
     )
 
-# Search
+# ----------------------------
+# SEARCH
+# ----------------------------
+
 st.divider()
 
 search = st.text_input(
@@ -188,9 +289,7 @@ search = st.text_input(
 )
 
 cursor.execute(
-    """
-    SELECT * FROM files
-    """
+    "SELECT * FROM files"
 )
 
 rows = cursor.fetchall()
@@ -200,10 +299,18 @@ filtered_rows = []
 for row in rows:
 
     if search.lower() in row[1].lower():
-        filtered_rows.append(row)
 
-# File Table
-st.subheader("📁 Stored Files")
+        filtered_rows.append(
+            row
+        )
+
+# ----------------------------
+# FILE TABLE
+# ----------------------------
+
+st.subheader(
+    "📁 Stored Files"
+)
 
 for row in filtered_rows:
 
@@ -233,40 +340,51 @@ for row in filtered_rows:
 
     with col5:
 
-        filepath = os.path.join(
-            UPLOAD_FOLDER,
-            filename
-        )
+        try:
 
-        if os.path.exists(filepath):
+            file_obj = s3.get_object(
+                Bucket=BUCKET_NAME,
+                Key=filename
+            )
 
-            with open(
-                filepath,
-                "rb"
-            ) as file:
+            st.download_button(
+                "⬇️",
+                file_obj["Body"].read(),
+                file_name=filename,
+                key=f"d{file_id}"
+            )
 
-                st.download_button(
-                    "⬇️",
-                    file,
-                    file_name=filename,
-                    key=f"d{file_id}"
-                )
+        except:
+
+            st.warning(
+                "Not Found"
+            )
 
         if st.button(
             "🗑️",
             key=f"x{file_id}"
         ):
 
-            if os.path.exists(filepath):
-                os.remove(filepath)
+            try:
+
+                s3.delete_object(
+                    Bucket=BUCKET_NAME,
+                    Key=filename
+                )
+
+            except:
+                pass
 
             cursor.execute(
                 """
                 DELETE FROM files
-                WHERE id = ?
+                WHERE id=?
                 """,
                 (file_id,)
             )
 
             conn.commit()
+
             st.rerun()
+
+conn.close()
