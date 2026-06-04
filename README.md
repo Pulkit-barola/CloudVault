@@ -18,7 +18,7 @@ Add your deployed Streamlit URL here:
 
 Add your GitHub repository URL here:
 
-[https://github.com/yourusername/CloudVault](https://github.com/Pulkit-barola/CloudVault)
+(https://github.com/Pulkit-barola/CloudVault)
 
 ---
 
@@ -120,7 +120,7 @@ Quickly locate files using keyword search.
 
 Clone the repository:
 
-git clone [https://github.com/yourusername/CloudVault.git](https://github.com/Pulkit-barola/CloudVault)
+git clone (https://github.com/Pulkit-barola/CloudVault)
 
 cd CloudVault
 
