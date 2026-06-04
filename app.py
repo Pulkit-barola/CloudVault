@@ -19,6 +19,17 @@ st.set_page_config(
 conn = sqlite3.connect("files.db", check_same_thread=False)
 cursor = conn.cursor()
 
+cursor.execute("""
+CREATE TABLE IF NOT EXISTS files (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename TEXT,
+    file_type TEXT,
+    size INTEGER,
+    upload_date TEXT
+)
+""")
+
+conn.commit()
 # Get Metrics First
 cursor.execute("SELECT COUNT(*) FROM files")
 total_files = cursor.fetchone()[0]
