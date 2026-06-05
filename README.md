@@ -153,6 +153,7 @@ AWS_BUCKET_NAME=cloudvault-storage-pulkit
 ## ▶️ Run Locally
 
 streamlit run app.py
+DEPLOY ON STREAMLIT ALSO 
 
 ---
 
