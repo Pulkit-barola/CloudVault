@@ -7,46 +7,34 @@ from dotenv import load_dotenv
 import boto3
 
 # ----------------------------
-# AWS CONFIG & MODE SELECTION
+# AWS CONFIG
 # ----------------------------
 
 load_dotenv()
 
-# 1. Start with os.environ (case-sensitive)
 AWS_ACCESS_KEY = os.getenv("AWS_ACCESS_KEY_ID")
 AWS_SECRET_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
 AWS_REGION = os.getenv("AWS_REGION")
 BUCKET_NAME = os.getenv("AWS_BUCKET_NAME")
 
-# 2. Try os.environ case-insensitively if not found
-for k, v in os.environ.items():
-    k_upper = k.upper()
-    if not AWS_ACCESS_KEY and k_upper == "AWS_ACCESS_KEY_ID":
-        AWS_ACCESS_KEY = v
-    elif not AWS_SECRET_KEY and k_upper == "AWS_SECRET_ACCESS_KEY":
-        AWS_SECRET_KEY = v
-    elif not AWS_REGION and k_upper == "AWS_REGION":
-        AWS_REGION = v
-    elif not BUCKET_NAME and k_upper == "AWS_BUCKET_NAME":
-        BUCKET_NAME = v
-
-# 3. Try Streamlit Secrets case-insensitively
+# Streamlit Secrets fallback for cloud deployment
 try:
-    for k in st.secrets:
-        v = st.secrets[k]
-        if isinstance(v, dict):
-            # Handle nested dicts if any
-            for nk, nv in v.items():
-                nk_upper = nk.upper()
-                if not AWS_ACCESS_KEY and nk_upper == "AWS_ACCESS_KEY_ID":
-                    AWS_ACCESS_KEY = nv
-                elif not AWS_SECRET_KEY and nk_upper == "AWS_SECRET_ACCESS_KEY":
-                    AWS_SECRET_KEY = nv
-                elif not AWS_REGION and nk_upper == "AWS_REGION":
-                    AWS_REGION = nv
-                elif not BUCKET_NAME and nk_upper == "AWS_BUCKET_NAME":
-                    BUCKET_NAME = nv
-        else:
+    if not AWS_ACCESS_KEY and "AWS_ACCESS_KEY_ID" in st.secrets:
+        AWS_ACCESS_KEY = st.secrets["AWS_ACCESS_KEY_ID"]
+    if not AWS_SECRET_KEY and "AWS_SECRET_ACCESS_KEY" in st.secrets:
+        AWS_SECRET_KEY = st.secrets["AWS_SECRET_ACCESS_KEY"]
+    if not AWS_REGION and "AWS_REGION" in st.secrets:
+        AWS_REGION = st.secrets["AWS_REGION"]
+    if not BUCKET_NAME and "AWS_BUCKET_NAME" in st.secrets:
+        BUCKET_NAME = st.secrets["AWS_BUCKET_NAME"]
+except Exception:
+    pass
+
+# Case-insensitive loading fallback
+if not all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, BUCKET_NAME]):
+    try:
+        for k in st.secrets:
+            v = st.secrets[k]
             k_upper = k.upper()
             if not AWS_ACCESS_KEY and k_upper == "AWS_ACCESS_KEY_ID":
                 AWS_ACCESS_KEY = v
@@ -56,24 +44,15 @@ try:
                 AWS_REGION = v
             elif not BUCKET_NAME and k_upper == "AWS_BUCKET_NAME":
                 BUCKET_NAME = v
-except Exception:
-    pass
+    except Exception:
+        pass
 
-# Validate AWS environment variables
-is_aws_configured = all([AWS_ACCESS_KEY, AWS_SECRET_KEY, AWS_REGION, BUCKET_NAME])
-s3 = None
-aws_error = None
-
-# Always try to initialize boto3 client
-try:
-    s3 = boto3.client(
-        "s3",
-        aws_access_key_id=AWS_ACCESS_KEY,
-        aws_secret_access_key=AWS_SECRET_KEY,
-        region_name=AWS_REGION
-    )
-except Exception as e:
-    aws_error = str(e)
+s3 = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY,
+    aws_secret_access_key=AWS_SECRET_KEY,
+    region_name=AWS_REGION
+)
 
 # ----------------------------
 # PAGE CONFIG
@@ -84,17 +63,6 @@ st.set_page_config(
     page_icon="☁️",
     layout="wide"
 )
-
-# Custom Styling
-st.markdown("""
-<style>
-    .metric-container {
-        border-radius: 8px;
-        padding: 10px;
-        background-color: rgba(255,255,255,0.05);
-    }
-</style>
-""", unsafe_allow_html=True)
 
 # ----------------------------
 # DATABASE
@@ -144,11 +112,6 @@ if total_size is None:
 
 st.sidebar.title("☁️ CloudVault")
 
-if is_aws_configured:
-    st.sidebar.success("⚡ Mode: AWS S3 Cloud")
-else:
-    st.sidebar.warning("⚠️ S3 Config Check")
-
 st.sidebar.markdown("""
 ### Features
 - Upload Files
@@ -158,6 +121,10 @@ st.sidebar.markdown("""
 - Storage Analytics
 - AWS S3 Storage
 """)
+
+st.sidebar.success(
+    "AWS Cloud Ready Architecture"
+)
 
 MAX_STORAGE_MB = 100
 
@@ -196,24 +163,6 @@ st.caption(
     "AWS S3 Powered File Storage System"
 )
 
-# Configuration Status Banner
-if is_aws_configured:
-    st.info(f"Connected to AWS S3 Bucket: `{BUCKET_NAME}`")
-else:
-    st.warning("⚠️ **AWS S3 Configuration Check:** Some variables might not be configured. If you face upload errors, please verify your credentials.")
-    with st.expander("Details & Setup Instructions"):
-        st.markdown(f"""
-        Please verify your AWS S3 environment variables:
-        * `AWS_ACCESS_KEY_ID`: {"Set" if AWS_ACCESS_KEY else "Not Set"}
-        * `AWS_SECRET_ACCESS_KEY`: {"Set" if AWS_SECRET_KEY else "Not Set"}
-        * `AWS_REGION`: {"Set" if AWS_REGION else "Not Set"}
-        * `AWS_BUCKET_NAME`: {"Set" if BUCKET_NAME else "Not Set"}
-        
-        Create a `.env` file in the project root or configure Secrets on Streamlit Cloud.
-        """)
-        if aws_error:
-            st.error(f"AWS S3 Error: {aws_error}")
-
 # ----------------------------
 # FILE UPLOAD
 # ----------------------------
@@ -224,49 +173,45 @@ uploaded_file = st.file_uploader(
 
 if uploaded_file:
 
-    if st.button("Upload", use_container_width=True):
+    if st.button("Upload"):
 
-        if not BUCKET_NAME:
-            st.error("Upload Failed: AWS_BUCKET_NAME is not configured/set.")
-        elif not s3:
-            st.error("Upload Failed: AWS S3 client could not be initialized. Please check your credentials.")
-        else:
-            try:
-                s3.upload_fileobj(
-                    uploaded_file,
-                    BUCKET_NAME,
-                    uploaded_file.name
-                )
-                success_msg = "File Uploaded To AWS S3 Successfully!"
+        try:
 
-                cursor.execute(
-                    """
-                    INSERT INTO files
-                    (filename,file_type,size,upload_date)
-                    VALUES (?,?,?,?)
-                    """,
-                    (
-                        uploaded_file.name,
-                        uploaded_file.type,
-                        uploaded_file.size,
-                        datetime.now().strftime(
-                            "%Y-%m-%d %H:%M:%S"
-                        )
+            s3.upload_fileobj(
+                uploaded_file,
+                BUCKET_NAME,
+                uploaded_file.name
+            )
+
+            cursor.execute(
+                """
+                INSERT INTO files
+                (filename,file_type,size,upload_date)
+                VALUES (?,?,?,?)
+                """,
+                (
+                    uploaded_file.name,
+                    uploaded_file.type,
+                    uploaded_file.size,
+                    datetime.now().strftime(
+                        "%Y-%m-%d %H:%M:%S"
                     )
                 )
+            )
 
-                conn.commit()
+            conn.commit()
 
-                st.success(success_msg)
+            st.success(
+                "File Uploaded To AWS S3 Successfully!"
+            )
 
-                conn.close()
-                st.rerun()
+            st.rerun()
 
-            except Exception as e:
+        except Exception as e:
 
-                st.error(
-                    f"Upload Failed: {e}"
-                )
+            st.error(
+                f"Upload Failed: {e}"
+            )
 
 # ----------------------------
 # METRICS
@@ -277,21 +222,21 @@ st.divider()
 col1, col2 = st.columns(2)
 
 with col1:
-    with st.container(border=True):
-        st.metric(
-            "Total Files",
-            total_files
-        )
+
+    st.metric(
+        "Total Files",
+        total_files
+    )
 
 with col2:
-    with st.container(border=True):
-        st.metric(
-            "Storage Used (KB)",
-            round(
-                total_size / 1024,
-                2
-            )
+
+    st.metric(
+        "Storage Used (KB)",
+        round(
+            total_size / 1024,
+            2
         )
+    )
 
 # ----------------------------
 # RECENT FILES
@@ -397,83 +342,69 @@ st.subheader(
     "📁 Stored Files"
 )
 
-if filtered_rows:
-    col_h1, col_h2, col_h3, col_h4, col_h5, col_h6 = st.columns([3, 2, 1.5, 2.5, 1, 1])
-    with col_h1: st.markdown("**Filename**")
-    with col_h2: st.markdown("**Type**")
-    with col_h3: st.markdown("**Size**")
-    with col_h4: st.markdown("**Upload Date**")
-    with col_h5: st.markdown("**Download**")
-    with col_h6: st.markdown("**Delete**")
+for row in filtered_rows:
 
-    for row in filtered_rows:
+    file_id = row[0]
+    filename = row[1]
+    file_type = row[2]
+    size = row[3]
+    upload_date = row[4]
 
-        file_id = row[0]
-        filename = row[1]
-        file_type = row[2]
-        size = row[3]
-        upload_date = row[4]
+    col1, col2, col3, col4, col5 = st.columns(
+        [4, 2, 2, 2, 1]
+    )
 
-        col1, col2, col3, col4, col5, col6 = st.columns(
-            [3, 2, 1.5, 2.5, 1, 1]
+    with col1:
+        st.write(filename)
+
+    with col2:
+        st.write(file_type)
+
+    with col3:
+        st.write(
+            f"{round(size / 1024, 2)} KB"
         )
 
-        with col1:
-            st.write(filename)
+    with col4:
+        st.write(upload_date)
 
-        with col2:
-            st.write(file_type)
+    with col5:
 
-        with col3:
-            st.write(
-                f"{round(size / 1024, 2)} KB"
+        try:
+            download_url = s3.generate_presigned_url(
+                'get_object',
+                Params={'Bucket': BUCKET_NAME, 'Key': filename},
+                ExpiresIn=3600
             )
+            st.link_button("⬇️", download_url)
+        except:
+            st.warning("Not Found")
 
-        with col4:
-            st.write(upload_date)
+        if st.button(
+            "🗑️",
+            key=f"x{file_id}"
+        ):
 
-        with col5:
+            try:
 
-            if s3 and BUCKET_NAME:
-                try:
-                    download_url = s3.generate_presigned_url(
-                        'get_object',
-                        Params={'Bucket': BUCKET_NAME, 'Key': filename},
-                        ExpiresIn=3600
-                    )
-                    st.link_button("⬇️", download_url)
-                except:
-                    st.warning("Error")
-            else:
-                st.warning("Unavailable")
-
-        with col6:
-            if st.button(
-                "🗑️",
-                key=f"x{file_id}"
-            ):
-                if s3 and BUCKET_NAME:
-                    try:
-                        s3.delete_object(
-                            Bucket=BUCKET_NAME,
-                            Key=filename
-                        )
-                    except:
-                        pass
-
-                cursor.execute(
-                    """
-                    DELETE FROM files
-                    WHERE id=?
-                    """,
-                    (file_id,)
+                s3.delete_object(
+                    Bucket=BUCKET_NAME,
+                    Key=filename
                 )
 
-                conn.commit()
-                conn.close()
+            except:
+                pass
 
-                st.rerun()
-else:
-    st.info("No files stored yet.")
+            cursor.execute(
+                """
+                DELETE FROM files
+                WHERE id=?
+                """,
+                (file_id,)
+            )
+
+            conn.commit()
+
+            st.rerun()
 
 conn.close()
